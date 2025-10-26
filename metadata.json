@@ -1,0 +1,7 @@
+{
+  "name": "Tutor de Inglés con IA",
+  "description": "Una plataforma web interactiva que permite a los usuarios mejorar su fluidez, pronunciación y confianza en inglés a través de conversaciones de voz con un tutor de inteligencia artificial en tiempo real.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
