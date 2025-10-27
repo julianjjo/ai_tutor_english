@@ -5,6 +5,7 @@ import { PERSONAS, SCENARIOS } from './constants';
 import { useSupabaseData } from './hooks/useSupabaseData';
 import { useConversation } from './hooks/useConversation';
 import { useTextSelection } from './hooks/useTextSelection';
+import { useTextToSpeech } from './hooks/useTextToSpeech';
 
 import Header from './components/Header';
 import SettingsPanel from './components/SettingsPanel';
@@ -53,6 +54,8 @@ const App: React.FC = () => {
     } = useConversation(selectedPersona, selectedScenario);
 
     const { selectionToolbar, hideSelectionToolbar } = useTextSelection();
+    
+    const { playText, loadingCardId, error: ttsError } = useTextToSpeech();
 
     // Event Handlers (acting as a bridge between hooks and UI)
     const toggleConversation = useCallback(() => {
@@ -98,7 +101,7 @@ const App: React.FC = () => {
         }
     };
     
-    const overallError = supabaseError || conversationError;
+    const overallError = supabaseError || conversationError || ttsError;
 
     return (
         <div className="min-h-screen max-h-screen flex flex-col">
@@ -180,6 +183,8 @@ const App: React.FC = () => {
                                 flashcards={flashcards}
                                 onDelete={deleteFlashcard}
                                 onReview={updateFlashcardReview}
+                                onPlayAudio={playText}
+                                loadingCardId={loadingCardId}
                             />
                         )}
                     </div>

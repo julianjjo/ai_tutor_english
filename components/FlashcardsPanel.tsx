@@ -5,20 +5,52 @@ interface FlashcardsPanelProps {
     flashcards: Flashcard[];
     onDelete: (id: string) => void;
     onReview: (card: Flashcard, quality: number) => void;
+    onPlayAudio: (text: string, cardId: string) => void;
+    loadingCardId: string | null;
 }
 
-const ReviewCard: React.FC<{ card: Flashcard; onReview: (quality: number) => void; }> = ({ card, onReview }) => {
+// Fix: Update the onPlay prop type to accept a MouseEvent to match the event handler passed to it.
+const AudioButton: React.FC<{ text: string; cardId: string; onPlay: (e: React.MouseEvent) => void; loadingCardId: string | null }> = ({ onPlay, loadingCardId, cardId }) => (
+    <button
+        onClick={onPlay}
+        disabled={!!loadingCardId}
+        className="p-1.5 rounded-full text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-wait"
+        aria-label="Reproducir audio"
+    >
+        {loadingCardId === cardId ? (
+            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+            </svg>
+        )}
+    </button>
+);
+
+
+const ReviewCard: React.FC<{ card: Flashcard; onReview: (quality: number) => void; onPlayAudio: (text: string, cardId: string) => void; loadingCardId: string | null; }> = ({ card, onReview, onPlayAudio, loadingCardId }) => {
     const [isFlipped, setIsFlipped] = useState(false);
+
+    const handlePlayAudio = (e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent card from flipping when clicking the audio button
+        onPlayAudio(card.front, card.id);
+    };
 
     return (
         <div className="w-full flex flex-col items-center">
-            <div className="w-full h-48 [perspective:1000px] mb-4" onClick={() => setIsFlipped(true)}>
+            <div className="w-full h-48 [perspective:1000px] mb-4" onClick={() => !isFlipped && setIsFlipped(true)}>
                 <div
                     className={`relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}
                 >
                     {/* Front */}
                     <div className="absolute w-full h-full bg-slate-700 rounded-lg p-4 flex flex-col justify-between items-center text-center [backface-visibility:hidden]">
-                        <span className="text-xs text-slate-400 self-start">Inglés</span>
+                         <div className="self-start flex items-center gap-2">
+                           <span className="text-xs text-slate-400">Inglés</span>
+                           <AudioButton onPlay={handlePlayAudio} loadingCardId={loadingCardId} cardId={card.id} text={card.front} />
+                        </div>
                         <p className="text-2xl text-white font-bold">{card.front}</p>
                         <span className="text-xs text-slate-400 self-end">Toca para voltear</span>
                     </div>
@@ -45,7 +77,9 @@ const ReviewSession: React.FC<{
     cards: Flashcard[];
     onFinish: () => void;
     onReview: (card: Flashcard, quality: number) => void;
-}> = ({ cards, onFinish, onReview }) => {
+    onPlayAudio: (text: string, cardId: string) => void;
+    loadingCardId: string | null;
+}> = ({ cards, onFinish, onReview, onPlayAudio, loadingCardId }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
 
     if (currentIndex >= cards.length) {
@@ -73,13 +107,13 @@ const ReviewSession: React.FC<{
                 <h2 className="text-lg font-semibold text-teal-300 text-center">Repasando...</h2>
                  <p className="text-slate-400">{currentIndex + 1} / {cards.length}</p>
             </div>
-            <ReviewCard card={card} onReview={handleReview} />
+            <ReviewCard card={card} onReview={handleReview} onPlayAudio={onPlayAudio} loadingCardId={loadingCardId} />
         </div>
     );
 };
 
 
-const FlashcardsPanel: React.FC<FlashcardsPanelProps> = ({ flashcards, onDelete, onReview }) => {
+const FlashcardsPanel: React.FC<FlashcardsPanelProps> = ({ flashcards, onDelete, onReview, onPlayAudio, loadingCardId }) => {
     const [isReviewing, setIsReviewing] = useState(false);
 
     const dueCards = useMemo(() => {
@@ -90,7 +124,7 @@ const FlashcardsPanel: React.FC<FlashcardsPanelProps> = ({ flashcards, onDelete,
     }, [flashcards]);
 
     if (isReviewing) {
-        return <ReviewSession cards={dueCards} onFinish={() => setIsReviewing(false)} onReview={onReview} />;
+        return <ReviewSession cards={dueCards} onFinish={() => setIsReviewing(false)} onReview={onReview} onPlayAudio={onPlayAudio} loadingCardId={loadingCardId} />;
     }
 
     return (
@@ -119,9 +153,12 @@ const FlashcardsPanel: React.FC<FlashcardsPanelProps> = ({ flashcards, onDelete,
                     <p className="text-sm text-slate-400 text-center mb-2">Todas las flashcards ({flashcards.length})</p>
                     {flashcards.map(card => (
                        <div key={card.id} className="bg-slate-700/50 p-3 rounded-lg flex justify-between items-center">
-                            <div>
-                                <p className="font-semibold text-white">{card.front}</p>
-                                <p className="text-sm text-slate-300">{card.back}</p>
+                            <div className="flex items-center gap-3">
+                                <AudioButton onPlay={() => onPlayAudio(card.front, card.id)} loadingCardId={loadingCardId} cardId={card.id} text={card.front} />
+                                <div>
+                                    <p className="font-semibold text-white">{card.front}</p>
+                                    <p className="text-sm text-slate-300">{card.back}</p>
+                                </div>
                             </div>
                             <button
                                 onClick={(e) => { e.stopPropagation(); onDelete(card.id); }}
