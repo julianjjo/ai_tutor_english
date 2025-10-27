@@ -37,6 +37,7 @@ export const useSupabaseData = () => {
                     easinessFactor: item.easiness_factor,
                     interval: item.interval,
                     nextReviewAt: item.next_review_at,
+                    audioBase64: item.audio_base64,
                 }));
                 setFlashcards(mappedFlashcards);
 
@@ -86,7 +87,12 @@ export const useSupabaseData = () => {
 
     const createFlashcard = useCallback(async ({ front, back }: { front: string; back: string }) => {
         try {
-            const { data, error } = await supabase.from('flashcards').insert({ front, back }).select().single();
+            const initialSM2 = {
+                repetition: 0,
+                interval: 0,
+                easiness_factor: 2.5, // Standard starting easiness factor
+            };
+            const { data, error } = await supabase.from('flashcards').insert({ front, back, ...initialSM2 }).select().single();
             if (error) throw error;
             const newCard: Flashcard = {
                 id: data.id,
@@ -96,6 +102,7 @@ export const useSupabaseData = () => {
                 easinessFactor: data.easiness_factor,
                 interval: data.interval,
                 nextReviewAt: data.next_review_at,
+                audioBase64: data.audio_base64,
             };
             setFlashcards(prev => [newCard, ...prev]);
         } catch (e) {
@@ -146,6 +153,21 @@ export const useSupabaseData = () => {
             setError("No se pudo actualizar la flashcard.");
         }
     }, []);
+    
+    const saveFlashcardAudio = useCallback(async (cardId: string, audioBase64: string) => {
+        try {
+            const { error } = await supabase.from('flashcards').update({ audio_base64: audioBase64 }).eq('id', cardId);
+            if (error) throw error;
+            setFlashcards(prev => 
+                prev.map(card => 
+                    card.id === cardId ? { ...card, audioBase64: audioBase64 } : card
+                )
+            );
+        } catch (e) {
+            console.error("Failed to save flashcard audio:", e);
+            setError("No se pudo guardar el audio de la flashcard.");
+        }
+    }, []);
 
-    return { history, flashcards, error, saveConversation, deleteConversation, createFlashcard, deleteFlashcard, updateFlashcardReview };
+    return { history, flashcards, error, saveConversation, deleteConversation, createFlashcard, deleteFlashcard, updateFlashcardReview, saveFlashcardAudio };
 };

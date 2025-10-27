@@ -42,6 +42,7 @@ const App: React.FC = () => {
         createFlashcard,
         deleteFlashcard,
         updateFlashcardReview,
+        saveFlashcardAudio,
     } = useSupabaseData();
 
     const {
@@ -108,6 +109,10 @@ const App: React.FC = () => {
         createFlashcard({ front: cardContent.front, back: backContent });
     };
     
+    const handlePlayAudio = useCallback(async (card: Flashcard) => {
+        await playText(card, saveFlashcardAudio);
+    }, [playText, saveFlashcardAudio]);
+
     const overallError = supabaseError || conversationError || ttsError;
 
     return (
@@ -190,7 +195,7 @@ const App: React.FC = () => {
                                 flashcards={flashcards}
                                 onDelete={deleteFlashcard}
                                 onReview={updateFlashcardReview}
-                                onPlayAudio={playText}
+                                onPlayAudio={handlePlayAudio}
                                 loadingCardId={loadingCardId}
                             />
                         )}

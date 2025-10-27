@@ -5,11 +5,11 @@ interface FlashcardsPanelProps {
     flashcards: Flashcard[];
     onDelete: (id: string) => void;
     onReview: (card: Flashcard, quality: number) => void;
-    onPlayAudio: (text: string, cardId: string) => void;
+    onPlayAudio: (card: Flashcard) => void;
     loadingCardId: string | null;
 }
 
-const AudioButton: React.FC<{ text: string; cardId: string; onPlay: (e: React.MouseEvent) => void; loadingCardId: string | null }> = ({ onPlay, loadingCardId, cardId }) => (
+const AudioButton: React.FC<{ cardId: string; onPlay: (e: React.MouseEvent) => void; loadingCardId: string | null }> = ({ onPlay, loadingCardId, cardId }) => (
     <button
         onClick={onPlay}
         disabled={!!loadingCardId}
@@ -30,7 +30,7 @@ const AudioButton: React.FC<{ text: string; cardId: string; onPlay: (e: React.Mo
 );
 
 
-const ReviewCard: React.FC<{ card: Flashcard; onReview: (quality: number) => void; onPlayAudio: (text: string, cardId: string) => void; loadingCardId: string | null; }> = ({ card, onReview, onPlayAudio, loadingCardId }) => {
+const ReviewCard: React.FC<{ card: Flashcard; onReview: (quality: number) => void; onPlayAudio: (card: Flashcard) => void; loadingCardId: string | null; }> = ({ card, onReview, onPlayAudio, loadingCardId }) => {
     const [isFlipped, setIsFlipped] = useState(false);
 
     const [translation, explanation] = useMemo(() => {
@@ -43,7 +43,7 @@ const ReviewCard: React.FC<{ card: Flashcard; onReview: (quality: number) => voi
 
     const handlePlayAudio = (e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent card from flipping when clicking the audio button
-        onPlayAudio(card.front, card.id);
+        onPlayAudio(card);
     };
 
     return (
@@ -56,7 +56,7 @@ const ReviewCard: React.FC<{ card: Flashcard; onReview: (quality: number) => voi
                     <div className="absolute w-full h-full bg-slate-700 rounded-lg p-4 flex flex-col justify-between items-center text-center [backface-visibility:hidden]">
                          <div className="self-start flex items-center gap-2">
                            <span className="text-xs text-slate-400">Inglés</span>
-                           <AudioButton onPlay={handlePlayAudio} loadingCardId={loadingCardId} cardId={card.id} text={card.front} />
+                           <AudioButton onPlay={handlePlayAudio} loadingCardId={loadingCardId} cardId={card.id} />
                         </div>
                         <p className="text-2xl text-white font-bold px-2 break-words">{card.front}</p>
                         <span className="text-xs text-slate-400 self-end">Toca para voltear</span>
@@ -85,7 +85,7 @@ const ReviewSession: React.FC<{
     cards: Flashcard[];
     onFinish: () => void;
     onReview: (card: Flashcard, quality: number) => void;
-    onPlayAudio: (text: string, cardId: string) => void;
+    onPlayAudio: (card: Flashcard) => void;
     loadingCardId: string | null;
 }> = ({ cards, onFinish, onReview, onPlayAudio, loadingCardId }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -166,7 +166,7 @@ const FlashcardsPanel: React.FC<FlashcardsPanelProps> = ({ flashcards, onDelete,
                        return (
                        <div key={card.id} className="bg-slate-700/50 p-3 rounded-lg flex justify-between items-center">
                             <div className="flex items-center gap-3 flex-grow overflow-hidden">
-                                <AudioButton onPlay={(e) => { e.stopPropagation(); onPlayAudio(card.front, card.id); }} loadingCardId={loadingCardId} cardId={card.id} text={card.front} />
+                                <AudioButton onPlay={(e) => { e.stopPropagation(); onPlayAudio(card); }} loadingCardId={loadingCardId} cardId={card.id} />
                                 <div className="flex-grow overflow-hidden">
                                     <p className="font-semibold text-white truncate" title={card.front}>{card.front}</p>
                                     <p className="text-sm text-slate-300 truncate" title={translation}>{translation}</p>

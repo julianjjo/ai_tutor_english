@@ -1,3 +1,5 @@
+import { LiveServerMessage, Session } from '@google/genai';
+
 export enum ConversationState {
     IDLE = 'IDLE',
     LISTENING = 'LISTENING',
@@ -45,6 +47,7 @@ export interface Flashcard {
     easinessFactor: number;
     interval: number;
     nextReviewAt: string;
+    audioBase64?: string | null;
 }
 
 // Types for Supabase table rows
@@ -67,4 +70,5 @@ export interface DatabaseFlashcard {
     easiness_factor: number;
     interval: number;
     next_review_at: string;
+    audio_base64?: string | null;
 }

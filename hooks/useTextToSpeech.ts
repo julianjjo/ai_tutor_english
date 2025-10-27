@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { decode, decodeAudioData } from '../utils/audioUtils';
+import { Flashcard } from '../types';
 
 export const useTextToSpeech = () => {
     const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
@@ -15,33 +16,45 @@ export const useTextToSpeech = () => {
         return audioContextRef.current;
     };
 
-    const playText = useCallback(async (text: string, cardId: string) => {
+    const playText = useCallback(async (card: Flashcard, saveAudio: (cardId: string, audioBase64: string) => Promise<void>) => {
         if (loadingCardId) return; // Prevent multiple requests at once
         
-        setLoadingCardId(cardId);
+        setLoadingCardId(card.id);
         setError(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-            const response = await ai.models.generateContent({
-                model: "gemini-2.5-flash-preview-tts",
-                contents: [{ parts: [{ text }] }],
-                config: {
-                    responseModalities: [Modality.AUDIO],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: 'Zephyr' }, // A standard, clear English voice
+            let audioToPlay = card.audioBase64;
+
+            if (!audioToPlay) {
+                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+                const response = await ai.models.generateContent({
+                    model: "gemini-2.5-flash-preview-tts",
+                    contents: [{ parts: [{ text: card.front }] }],
+                    config: {
+                        responseModalities: [Modality.AUDIO],
+                        speechConfig: {
+                            voiceConfig: {
+                                prebuiltVoiceConfig: { voiceName: 'Zephyr' }, // A standard, clear English voice
+                            },
                         },
                     },
-                },
-            });
+                });
+                
+                const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
-            const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-
-            if (base64Audio) {
+                if (base64Audio) {
+                    audioToPlay = base64Audio;
+                    // Save for future use, but don't wait for it.
+                    saveAudio(card.id, base64Audio).catch(console.error); 
+                } else {
+                    throw new Error("No audio data received from API.");
+                }
+            }
+            
+            if (audioToPlay) {
                 const outputAudioContext = getAudioContext();
                 const audioBuffer = await decodeAudioData(
-                    decode(base64Audio),
+                    decode(audioToPlay),
                     outputAudioContext,
                     24000,
                     1
@@ -51,7 +64,7 @@ export const useTextToSpeech = () => {
                 source.connect(outputAudioContext.destination);
                 source.start();
             } else {
-                throw new Error("No audio data received from API.");
+                 throw new Error("No audio available to play.");
             }
 
         } catch (e) {
