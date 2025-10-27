@@ -41,6 +41,10 @@ export interface Flashcard {
     id: string;
     front: string;
     back: string;
+    repetition: number;
+    easinessFactor: number;
+    interval: number;
+    nextReviewAt: string;
 }
 
 // Types for Supabase table rows
@@ -59,4 +63,8 @@ export interface DatabaseFlashcard {
     created_at: string;
     front: string;
     back: string;
+    repetition: number;
+    easiness_factor: number;
+    interval: number;
+    next_review_at: string;
 }

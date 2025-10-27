@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { ConversationState, Persona, Scenario, Flashcard } from './types';
 import { PERSONAS, SCENARIOS } from './constants';
@@ -17,11 +16,18 @@ import HistoryPanel from './components/HistoryPanel';
 import FlashcardsPanel from './components/FlashcardsPanel';
 import SelectionToolbar from './components/SelectionToolbar';
 
+interface ModalData {
+    word: string;
+    translation: string;
+    explanation: string;
+    isVisible: boolean;
+}
+
 const App: React.FC = () => {
     // High-level state management
     const [selectedPersona, setSelectedPersona] = useState<Persona>(PERSONAS[2]);
     const [selectedScenario, setSelectedScenario] = useState<Scenario>(SCENARIOS[0]);
-    const [modalData, setModalData] = useState<{ word: string; translation: string; isVisible: boolean }>({ word: '', translation: '', isVisible: false });
+    const [modalData, setModalData] = useState<ModalData>({ word: '', translation: '', explanation: '', isVisible: false });
     const [activeTab, setActiveTab] = useState<'settings' | 'history' | 'flashcards'>('settings');
     const [isSettingsPanelCollapsed, setIsSettingsPanelCollapsed] = useState(window.innerWidth < 768);
 
@@ -34,6 +40,7 @@ const App: React.FC = () => {
         deleteConversation,
         createFlashcard,
         deleteFlashcard,
+        updateFlashcardReview,
     } = useSupabaseData();
 
     const {
@@ -60,7 +67,6 @@ const App: React.FC = () => {
         await stopConversation();
     }, [stopConversation]);
 
-    // FIX: Pass all required arguments to saveConversation
     const handleSave = useCallback(() => {
         const title = `${selectedScenario.name} - ${selectedPersona.name}`;
         saveConversation(transcript, selectedPersona.id, selectedScenario.id, title);
@@ -76,9 +82,9 @@ const App: React.FC = () => {
     const handleTranslate = async (text: string) => {
         hideSelectionToolbar();
         if (!text) return;
-        setModalData({ word: text, translation: 'Traduciendo...', isVisible: true });
-        const translation = await generateTranslation(text);
-        setModalData({ word: text, translation, isVisible: true });
+        setModalData({ word: text, translation: 'Traduciendo...', explanation: '', isVisible: true });
+        const { translation, explanation } = await generateTranslation(text);
+        setModalData({ word: text, translation, explanation, isVisible: true });
     };
 
     const handleCreateFlashcard = async (text: string) => {
@@ -86,7 +92,7 @@ const App: React.FC = () => {
         // Prevent creating duplicate flashcards
         if (flashcards.some(f => f.front.toLowerCase() === text.toLowerCase())) return;
 
-        const back = await generateTranslation(text, true); // Get clean translation
+        const { translation: back } = await generateTranslation(text, true); // Get clean translation
         if (back) {
             createFlashcard({ front: text, back });
         }
@@ -173,6 +179,7 @@ const App: React.FC = () => {
                             <FlashcardsPanel
                                 flashcards={flashcards}
                                 onDelete={deleteFlashcard}
+                                onReview={updateFlashcardReview}
                             />
                         )}
                     </div>

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality, Session } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality, Session, Type } from '@google/genai';
 import { ConversationState, Persona, Scenario, TranscriptEntry } from '../types';
 import { encode, decode, decodeAudioData } from '../utils/audioUtils';
 
@@ -176,19 +176,44 @@ export const useConversation = (selectedPersona: Persona, selectedScenario: Scen
         }
     }, [conversationState, selectedPersona, selectedScenario, cleanupAudio, stopConversation, handleMessage]);
 
-    const generateTranslation = useCallback(async (text: string, clean: boolean = false): Promise<string> => {
-        if (!text) return '';
+    const generateTranslation = useCallback(async (text: string, clean: boolean = false): Promise<{ translation: string, explanation: string }> => {
+        if (!text) return { translation: '', explanation: '' };
+        
+        const cleanSchema = {
+            type: Type.OBJECT,
+            properties: {
+                translation: { type: Type.STRING },
+            },
+        };
+
+        const fullSchema = {
+            type: Type.OBJECT,
+            properties: {
+                translation: { type: Type.STRING, description: "The most direct and common Spanish translation." },
+                explanation: { type: Type.STRING, description: "A brief explanation in Spanish about the translation. Mention any nuances, alternative translations, or common usage contexts. Format the explanation with markdown, using **bold text** for emphasis and numbered lists for alternatives (e.g., '1. First option... 2. Second option...')." },
+            },
+        };
+
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
             const result = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
-                contents: `Translate the following English text to Spanish: "${text}"`,
-                ...(clean && { config: { systemInstruction: "You are a translation tool. Provide only the Spanish translation, without any extra text, explanations, or quotation marks." } })
+                contents: `Translate the following English text to Spanish and provide an explanation: "${text}"`,
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: clean ? cleanSchema : fullSchema,
+                }
             });
-            return result.text.trim();
+
+            const jsonResponse = JSON.parse(result.text);
+            return {
+                translation: jsonResponse.translation || 'No se encontró traducción.',
+                explanation: jsonResponse.explanation || '',
+            };
+
         } catch (e) {
             console.error("Translation error:", e);
-            return 'Error al traducir.';
+            return { translation: 'Error al traducir.', explanation: 'No se pudo obtener una explicación.' };
         }
     }, []);
 
