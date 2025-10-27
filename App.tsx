@@ -1,5 +1,8 @@
+
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality, LiveSession } from '@google/genai';
+// FIX: Use `Session` instead of the deprecated `LiveSession` type.
+import { GoogleGenAI, LiveServerMessage, Modality, Session } from '@google/genai';
+import { createClient } from '@supabase/supabase-js';
 import { ConversationState, Persona, Scenario, TranscriptEntry, SavedConversation, Flashcard } from './types';
 import { PERSONAS, SCENARIOS } from './constants';
 import { encode, decode, decodeAudioData } from './utils/audioUtils';
@@ -13,8 +16,9 @@ import HistoryPanel from './components/HistoryPanel';
 import FlashcardsPanel from './components/FlashcardsPanel';
 import SelectionToolbar from './components/SelectionToolbar';
 
-const HISTORY_STORAGE_KEY = 'ia-english-tutor-history';
-const FLASHCARDS_STORAGE_KEY = 'ia-english-tutor-flashcards';
+const supabaseUrl = 'https://srqaxcdhgombfhvapnzm.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNycWF4Y2RoZ29tYmZodmFwbnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1MDI1MTIsImV4cCI6MjA3NzA3ODUxMn0._wEJXvpEaW_SlTY4PpQOUl1mqF_O6ah7iLnUSMo4xYQ';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 
 const App: React.FC = () => {
@@ -28,8 +32,11 @@ const App: React.FC = () => {
     const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
     const [activeTab, setActiveTab] = useState<'settings' | 'history' | 'flashcards'>('settings');
     const [selectionToolbar, setSelectionToolbar] = useState<{ isVisible: boolean; text: string; top: number; left: number; } | null>(null);
+    const [isSettingsPanelCollapsed, setIsSettingsPanelCollapsed] = useState(false);
 
-    const sessionPromiseRef = useRef<Promise<LiveSession> | null>(null);
+
+    // FIX: Use Session type for the session promise ref.
+    const sessionPromiseRef = useRef<Promise<Session> | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
@@ -39,22 +46,58 @@ const App: React.FC = () => {
     const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
     useEffect(() => {
-        try {
-            const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
-            if (savedHistory) setHistory(JSON.parse(savedHistory));
-
-            const savedFlashcards = localStorage.getItem(FLASHCARDS_STORAGE_KEY);
-            if (savedFlashcards) setFlashcards(JSON.parse(savedFlashcards));
-
-        } catch (e) {
-            console.error("Failed to load data from localStorage:", e);
+        // Collapse the settings panel by default on mobile devices
+        if (window.innerWidth < 768) {
+            setIsSettingsPanelCollapsed(true);
         }
+    }, []);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                // Fetch History
+                const { data: historyData, error: historyError } = await supabase
+                    .from('conversations')
+                    .select('*')
+                    .order('timestamp', { ascending: false });
+
+                if (historyError) throw historyError;
+                
+                const mappedHistory: SavedConversation[] = historyData.map((item: any) => ({
+                    id: item.id,
+                    title: item.title,
+                    timestamp: new Date(item.timestamp).getTime(),
+                    transcript: item.transcript,
+                    personaId: item.personaId,
+                    scenarioId: item.scenarioId,
+                }));
+                setHistory(mappedHistory);
+
+                // Fetch Flashcards
+                const { data: flashcardsData, error: flashcardsError } = await supabase
+                    .from('flashcards')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                
+                if (flashcardsError) throw flashcardsError;
+                 const mappedFlashcards: Flashcard[] = flashcardsData.map((item: any) => ({
+                    id: item.id,
+                    front: item.front,
+                    back: item.back,
+                }));
+                setFlashcards(mappedFlashcards);
+
+            } catch (e) {
+                console.error("Failed to load data from Supabase:", e);
+                setError("No se pudo cargar el historial o las flashcards.");
+            }
+        };
+        fetchData();
     }, []);
     
     useEffect(() => {
         const handleMouseUp = (event: MouseEvent) => {
             const target = event.target as HTMLElement;
-            // Ignora los clics dentro de la propia barra de herramientas
             if (target.closest('.selection-toolbar')) {
                 return;
             }
@@ -68,11 +111,10 @@ const App: React.FC = () => {
                 const commonAncestor = range.commonAncestorContainer;
                 const parentElement = commonAncestor.nodeType === Node.TEXT_NODE ? commonAncestor.parentElement : commonAncestor as HTMLElement;
                 
-                // Comprueba si la selección está dentro de una burbuja de mensaje de la IA
                 if (parentElement?.closest('.ai-message-bubble')) {
                     const rect = range.getBoundingClientRect();
                     const top = rect.top + window.scrollY - 50;
-                    const left = rect.left + window.scrollX + (rect.width / 2) - 100; // Centrar barra
+                    const left = rect.left + window.scrollX + (rect.width / 2) - 100;
                     setSelectionToolbar({ isVisible: true, text: selectedText, top, left });
                 } else {
                     setSelectionToolbar(null);
@@ -131,45 +173,36 @@ const App: React.FC = () => {
         };
     }, [stopConversation]);
 
+    // FIX: Reworked transcript handling to remove usage of deprecated `isFinal` property.
     const handleMessage = async (message: LiveServerMessage) => {
         if (message.serverContent?.outputTranscription) {
-            const { text, isFinal } = message.serverContent.outputTranscription;
+            const { text } = message.serverContent.outputTranscription;
             setTranscript(prev => {
                 const last = prev[prev.length - 1];
-                if (last && last.speaker === 'ai' && !isFinal) {
-                     return [...prev.slice(0, -1), { ...last, text: last.text + text, isPartial: true }];
+                if (last?.speaker === 'ai') {
+                    return [...prev.slice(0, -1), { ...last, text: last.text + text, isPartial: true }];
+                } else {
+                    const finalizedPrev = last && last.isPartial ? [...prev.slice(0, -1), { ...last, isPartial: false }] : prev;
+                    return [...finalizedPrev, { speaker: 'ai', text, id: Date.now(), isPartial: true }];
                 }
-                if (last?.speaker === 'ai' && last.isPartial && isFinal) {
-                    return [...prev.slice(0, -1), { ...last, text: last.text + text, isPartial: false }];
-                }
-                if (last?.speaker === 'ai' && !last.isPartial) {
-                     return [...prev, { speaker: 'ai', text, id: Date.now(), isPartial: !isFinal }];
-                }
-                if (!last || last.speaker === 'user') {
-                     return [...prev, { speaker: 'ai', text, id: Date.now(), isPartial: !isFinal }];
-                }
-                return prev;
             });
         }
 
         if (message.serverContent?.inputTranscription) {
-            const { text, isFinal } = message.serverContent.inputTranscription;
+            const { text } = message.serverContent.inputTranscription;
             setTranscript(prev => {
                 const last = prev[prev.length - 1];
-                 if (last && last.speaker === 'user' && !isFinal) {
+                if (last?.speaker === 'user') {
                     return [...prev.slice(0, -1), { ...last, text: last.text + text, isPartial: true }];
+                } else {
+                    const finalizedPrev = last && last.isPartial ? [...prev.slice(0, -1), { ...last, isPartial: false }] : prev;
+                    return [...finalizedPrev, { speaker: 'user', text, id: Date.now(), isPartial: true }];
                 }
-                if (last?.speaker === 'user' && last.isPartial && isFinal) {
-                    return [...prev.slice(0, -1), { ...last, text: last.text + text, isPartial: false }];
-                }
-                 if (last?.speaker === 'user' && !last.isPartial) {
-                     return [...prev, { speaker: 'user', text, id: Date.now(), isPartial: !isFinal }];
-                }
-                 if (!last || last.speaker === 'ai') {
-                     return [...prev, { speaker: 'user', text, id: Date.now(), isPartial: !isFinal }];
-                 }
-                return prev;
             });
+        }
+
+        if (message.serverContent?.turnComplete) {
+            setTranscript(prev => prev.map(entry => entry.isPartial ? { ...entry, isPartial: false } : entry));
         }
 
         const base64EncodedAudioString = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
@@ -291,22 +324,36 @@ const App: React.FC = () => {
         setTranscript([]);
     }, [stopConversation]);
 
-    const handleSaveConversation = () => {
+    const handleSaveConversation = async () => {
         if (transcript.length === 0) return;
-        const newSave: SavedConversation = {
-            id: `convo-${Date.now()}`,
+        const conversationData = {
             title: `${selectedScenario.name} - ${new Date().toLocaleDateString()}`,
-            timestamp: Date.now(),
-            transcript: transcript.map(t => ({...t, isPartial: false})),
+            timestamp: new Date().toISOString(),
+            transcript: transcript.map(t => ({ ...t, isPartial: false })),
             personaId: selectedPersona.id,
             scenarioId: selectedScenario.id,
         };
-        const updatedHistory = [newSave, ...history];
-        setHistory(updatedHistory);
+
         try {
-            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory));
+            const { data, error } = await supabase
+                .from('conversations')
+                .insert(conversationData)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            const newSave: SavedConversation = {
+                id: data.id,
+                title: data.title,
+                timestamp: new Date(data.timestamp).getTime(),
+                transcript: data.transcript,
+                personaId: data.personaId,
+                scenarioId: data.scenarioId,
+            };
+            setHistory([newSave, ...history]);
         } catch (e) {
-            console.error("Failed to save history:", e);
+            console.error("Failed to save history to Supabase:", e);
             setError("No se pudo guardar la conversación.");
         }
     };
@@ -322,13 +369,14 @@ const App: React.FC = () => {
         }
     };
 
-    const handleDeleteConversation = (id: string) => {
-        const updatedHistory = history.filter(c => c.id !== id);
-        setHistory(updatedHistory);
+    const handleDeleteConversation = async (id: string) => {
         try {
-            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory));
+            const { error } = await supabase.from('conversations').delete().eq('id', id);
+            if (error) throw error;
+            const updatedHistory = history.filter(c => c.id !== id);
+            setHistory(updatedHistory);
         } catch (e) {
-            console.error("Failed to delete history item:", e);
+            console.error("Failed to delete history item from Supabase:", e);
             setError("No se pudo borrar la conversación.");
         }
     };
@@ -369,28 +417,27 @@ const App: React.FC = () => {
             });
             const translation = result.text.trim();
 
-            const newFlashcard: Flashcard = {
-                id: `flashcard-${Date.now()}`,
-                front: text,
-                back: translation,
-            };
-
+            const flashcardData = { front: text, back: translation };
+            const { data, error } = await supabase.from('flashcards').insert(flashcardData).select().single();
+            if (error) throw error;
+            
+            const newFlashcard: Flashcard = { id: data.id, front: data.front, back: data.back };
             const updatedFlashcards = [newFlashcard, ...flashcards];
             setFlashcards(updatedFlashcards);
-            localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedFlashcards));
         } catch (e) {
             console.error("Flashcard creation error:", e);
             setError("No se pudo crear la flashcard.");
         }
     };
 
-    const handleDeleteFlashcard = (id: string) => {
-        const updatedFlashcards = flashcards.filter(f => f.id !== id);
-        setFlashcards(updatedFlashcards);
+    const handleDeleteFlashcard = async (id: string) => {
         try {
-            localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedFlashcards));
+            const { error } = await supabase.from('flashcards').delete().eq('id', id);
+            if (error) throw error;
+            const updatedFlashcards = flashcards.filter(f => f.id !== id);
+            setFlashcards(updatedFlashcards);
         } catch (e) {
-            console.error("Failed to delete flashcard:", e);
+            console.error("Failed to delete flashcard from Supabase:", e);
             setError("No se pudo borrar la flashcard.");
         }
     };
@@ -411,8 +458,8 @@ const App: React.FC = () => {
 
             <main className="flex-grow container mx-auto p-4 flex flex-col md:flex-row gap-8 overflow-hidden">
                 <div className="w-full md:w-80 lg:w-96 flex-shrink-0 bg-slate-800/60 border border-slate-700 rounded-2xl flex flex-col backdrop-blur-sm">
-                    <div className="flex-shrink-0 p-2 border-b border-slate-700">
-                        <div className="flex bg-slate-900/50 rounded-lg p-1">
+                    <div className="flex-shrink-0 p-2 border-b border-slate-700 flex items-center">
+                        <div className="flex bg-slate-900/50 rounded-lg p-1 flex-grow">
                             {([
                                 { id: 'settings', label: 'Ajustes' },
                                 { id: 'history', label: 'Historial' },
@@ -427,8 +474,28 @@ const App: React.FC = () => {
                                 </button>
                             ))}
                         </div>
+                        <button
+                            onClick={() => setIsSettingsPanelCollapsed(!isSettingsPanelCollapsed)}
+                            className="ml-2 p-1 rounded-full text-slate-300 hover:bg-slate-700 md:hidden"
+                            aria-label={isSettingsPanelCollapsed ? 'Mostrar panel' : 'Ocultar panel'}
+                            aria-expanded={!isSettingsPanelCollapsed}
+                            aria-controls="settings-panel-content"
+                        >
+                            {isSettingsPanelCollapsed ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                                </svg>
+                            )}
+                        </button>
                     </div>
-                    <div className="flex-grow p-4 overflow-y-auto">
+                    <div 
+                        id="settings-panel-content"
+                        className={`flex-grow overflow-hidden transition-all duration-500 ease-in-out md:!p-4 md:!max-h-none md:overflow-y-auto ${isSettingsPanelCollapsed ? 'max-h-0 p-0' : 'max-h-[80vh] p-4'}`}
+                    >
                         {activeTab === 'settings' && (
                             <SettingsPanel
                                 selectedPersona={selectedPersona}
