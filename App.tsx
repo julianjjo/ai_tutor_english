@@ -1,7 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Session } from '@supabase/supabase-js';
 import { ConversationState, Persona, Scenario, Flashcard } from './types';
 import { PERSONAS, SCENARIOS } from './constants';
 
+import { supabase } from './supabaseClient';
 import { useSupabaseData } from './hooks/useSupabaseData';
 import { useConversation } from './hooks/useConversation';
 import { useTextSelection } from './hooks/useTextSelection';
@@ -16,6 +18,7 @@ import TranslationModal from './components/TranslationModal';
 import HistoryPanel from './components/HistoryPanel';
 import FlashcardsPanel from './components/FlashcardsPanel';
 import SelectionToolbar from './components/SelectionToolbar';
+import Auth from './components/Auth';
 
 interface ModalData {
     word: string;
@@ -25,6 +28,22 @@ interface ModalData {
 }
 
 const App: React.FC = () => {
+    const [session, setSession] = useState<Session | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            setIsLoading(false);
+        });
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+    
     // High-level state management
     const [selectedPersona, setSelectedPersona] = useState<Persona>(PERSONAS[2]);
     const [selectedScenario, setSelectedScenario] = useState<Scenario>(SCENARIOS[0]);
@@ -43,7 +62,7 @@ const App: React.FC = () => {
         deleteFlashcard,
         updateFlashcardReview,
         saveFlashcardAudio,
-    } = useSupabaseData();
+    } = useSupabaseData(session);
 
     const {
         transcript,
@@ -59,7 +78,7 @@ const App: React.FC = () => {
     
     const { playText, loadingCardId, error: ttsError } = useTextToSpeech();
 
-    // Event Handlers (acting as a bridge between hooks and UI)
+    // Event Handlers
     const toggleConversation = useCallback(() => {
         if (conversationState !== ConversationState.IDLE) {
             stopConversation();
@@ -98,10 +117,8 @@ const App: React.FC = () => {
         const cardContent = await generateFlashcardContent(text);
         if (!cardContent) return;
 
-        // Prevent creating duplicate flashcards
         if (flashcards.some(f => f.front.toLowerCase() === cardContent.front.toLowerCase())) return;
 
-        // Combine translation and explanation for the back.
         const backContent = cardContent.explanation 
             ? `${cardContent.back}\n\n${cardContent.explanation}`
             : cardContent.back;
@@ -113,7 +130,26 @@ const App: React.FC = () => {
         await playText(card, saveFlashcardAudio);
     }, [playText, saveFlashcardAudio]);
 
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+    };
+
     const overallError = supabaseError || conversationError || ttsError;
+    
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <svg className="animate-spin h-10 w-10 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+        );
+    }
+    
+    if (!session) {
+        return <Auth />;
+    }
 
     return (
         <div className="min-h-screen max-h-screen flex flex-col">
@@ -199,6 +235,17 @@ const App: React.FC = () => {
                                 loadingCardId={loadingCardId}
                             />
                         )}
+                    </div>
+                     <div className="mt-auto p-4 border-t border-slate-700">
+                        <p className="text-xs text-slate-400 mb-2 truncate" title={session.user.email ?? ''}>
+                            Sesión iniciada como: <span className="font-semibold text-slate-300">{session.user.email}</span>
+                        </p>
+                        <button
+                            onClick={handleLogout}
+                            className="w-full text-center px-4 py-2 bg-slate-700/80 hover:bg-red-500/50 text-slate-300 hover:text-white rounded-lg transition-colors text-sm font-semibold"
+                        >
+                            Cerrar Sesión
+                        </button>
                     </div>
                 </div>
 

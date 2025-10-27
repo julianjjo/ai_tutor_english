@@ -59,6 +59,7 @@ export interface DatabaseConversation {
     transcript: TranscriptEntry[];
     personaId: string;
     scenarioId: string;
+    user_id: string;
 }
 
 export interface DatabaseFlashcard {
@@ -70,5 +71,6 @@ export interface DatabaseFlashcard {
     easiness_factor: number;
     interval: number;
     next_review_at: string;
-    audio_base64?: string | null;
+    audio_base_64?: string | null;
+    user_id: string;
 }
