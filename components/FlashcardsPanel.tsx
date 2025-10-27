@@ -9,7 +9,6 @@ interface FlashcardsPanelProps {
     loadingCardId: string | null;
 }
 
-// Fix: Update the onPlay prop type to accept a MouseEvent to match the event handler passed to it.
 const AudioButton: React.FC<{ text: string; cardId: string; onPlay: (e: React.MouseEvent) => void; loadingCardId: string | null }> = ({ onPlay, loadingCardId, cardId }) => (
     <button
         onClick={onPlay}
@@ -34,6 +33,14 @@ const AudioButton: React.FC<{ text: string; cardId: string; onPlay: (e: React.Mo
 const ReviewCard: React.FC<{ card: Flashcard; onReview: (quality: number) => void; onPlayAudio: (text: string, cardId: string) => void; loadingCardId: string | null; }> = ({ card, onReview, onPlayAudio, loadingCardId }) => {
     const [isFlipped, setIsFlipped] = useState(false);
 
+    const [translation, explanation] = useMemo(() => {
+        const parts = card.back.split('\n\n');
+        if (parts.length > 1) {
+            return [parts[0], parts.slice(1).join('\n\n')];
+        }
+        return [card.back, null];
+    }, [card.back]);
+
     const handlePlayAudio = (e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent card from flipping when clicking the audio button
         onPlayAudio(card.front, card.id);
@@ -51,12 +58,13 @@ const ReviewCard: React.FC<{ card: Flashcard; onReview: (quality: number) => voi
                            <span className="text-xs text-slate-400">Inglés</span>
                            <AudioButton onPlay={handlePlayAudio} loadingCardId={loadingCardId} cardId={card.id} text={card.front} />
                         </div>
-                        <p className="text-2xl text-white font-bold">{card.front}</p>
+                        <p className="text-2xl text-white font-bold px-2 break-words">{card.front}</p>
                         <span className="text-xs text-slate-400 self-end">Toca para voltear</span>
                     </div>
                     {/* Back */}
-                    <div className="absolute w-full h-full bg-teal-600 rounded-lg p-4 flex flex-col justify-center items-center text-center [transform:rotateY(180deg)] [backface-visibility:hidden]">
-                        <p className="text-2xl font-semibold text-white">{card.back}</p>
+                    <div className="absolute w-full h-full bg-teal-600 rounded-lg p-4 flex flex-col justify-center items-center text-center [transform:rotateY(180deg)] [backface-visibility:hidden] overflow-hidden">
+                        <p className="text-2xl font-semibold text-white mb-3 px-2 break-words">{translation}</p>
+                        {explanation && <p className="text-sm text-slate-100 px-2 break-words">{explanation}</p>}
                     </div>
                 </div>
             </div>
@@ -107,7 +115,7 @@ const ReviewSession: React.FC<{
                 <h2 className="text-lg font-semibold text-teal-300 text-center">Repasando...</h2>
                  <p className="text-slate-400">{currentIndex + 1} / {cards.length}</p>
             </div>
-            <ReviewCard card={card} onReview={handleReview} onPlayAudio={onPlayAudio} loadingCardId={loadingCardId} />
+            <ReviewCard key={card.id} card={card} onReview={handleReview} onPlayAudio={onPlayAudio} loadingCardId={loadingCardId} />
         </div>
     );
 };
@@ -151,24 +159,30 @@ const FlashcardsPanel: React.FC<FlashcardsPanelProps> = ({ flashcards, onDelete,
             ) : (
                 <div className="space-y-2 overflow-y-auto pr-2 flex-grow">
                     <p className="text-sm text-slate-400 text-center mb-2">Todas las flashcards ({flashcards.length})</p>
-                    {flashcards.map(card => (
+                    {flashcards.map(card => {
+                        const parts = card.back.split('\n\n');
+                        const translation = parts[0];
+                        const explanation = parts.length > 1 ? parts.slice(1).join('\n\n') : null;
+                       return (
                        <div key={card.id} className="bg-slate-700/50 p-3 rounded-lg flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <AudioButton onPlay={() => onPlayAudio(card.front, card.id)} loadingCardId={loadingCardId} cardId={card.id} text={card.front} />
-                                <div>
-                                    <p className="font-semibold text-white">{card.front}</p>
-                                    <p className="text-sm text-slate-300">{card.back}</p>
+                            <div className="flex items-center gap-3 flex-grow overflow-hidden">
+                                <AudioButton onPlay={(e) => { e.stopPropagation(); onPlayAudio(card.front, card.id); }} loadingCardId={loadingCardId} cardId={card.id} text={card.front} />
+                                <div className="flex-grow overflow-hidden">
+                                    <p className="font-semibold text-white truncate" title={card.front}>{card.front}</p>
+                                    <p className="text-sm text-slate-300 truncate" title={translation}>{translation}</p>
+                                    {explanation && <p className="text-xs text-slate-400 truncate italic" title={explanation}>"{explanation}"</p>}
                                 </div>
                             </div>
                             <button
                                 onClick={(e) => { e.stopPropagation(); onDelete(card.id); }}
-                                className="p-1.5 rounded-full text-slate-400 hover:bg-red-500/20 hover:text-red-400"
+                                className="p-1.5 rounded-full text-slate-400 hover:bg-red-500/20 hover:text-red-400 ml-2 flex-shrink-0"
                                 aria-label="Borrar flashcard"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                             </button>
                        </div>
-                    ))}
+                       );
+                    })}
                 </div>
             )}
         </div>

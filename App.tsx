@@ -51,6 +51,7 @@ const App: React.FC = () => {
         startConversation,
         stopConversation,
         generateTranslation,
+        generateFlashcardContent,
     } = useConversation(selectedPersona, selectedScenario);
 
     const { selectionToolbar, hideSelectionToolbar } = useTextSelection();
@@ -92,13 +93,19 @@ const App: React.FC = () => {
 
     const handleCreateFlashcard = async (text: string) => {
         hideSelectionToolbar();
-        // Prevent creating duplicate flashcards
-        if (flashcards.some(f => f.front.toLowerCase() === text.toLowerCase())) return;
+        
+        const cardContent = await generateFlashcardContent(text);
+        if (!cardContent) return;
 
-        const { translation: back } = await generateTranslation(text, true); // Get clean translation
-        if (back) {
-            createFlashcard({ front: text, back });
-        }
+        // Prevent creating duplicate flashcards
+        if (flashcards.some(f => f.front.toLowerCase() === cardContent.front.toLowerCase())) return;
+
+        // Combine translation and explanation for the back.
+        const backContent = cardContent.explanation 
+            ? `${cardContent.back}\n\n${cardContent.explanation}`
+            : cardContent.back;
+
+        createFlashcard({ front: cardContent.front, back: backContent });
     };
     
     const overallError = supabaseError || conversationError || ttsError;

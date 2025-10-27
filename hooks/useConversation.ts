@@ -217,5 +217,42 @@ export const useConversation = (selectedPersona: Persona, selectedScenario: Scen
         }
     }, []);
 
-    return { transcript, conversationState, error, startConversation, stopConversation, generateTranslation };
+    const generateFlashcardContent = useCallback(async (text: string): Promise<{ front: string; back: string; explanation: string } | null> => {
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+
+            const schema = {
+                type: Type.OBJECT,
+                properties: {
+                    front: { type: Type.STRING, description: "The original English word or phrase to be learned from the text." },
+                    back: { type: Type.STRING, description: "The most direct and common Spanish translation for the English phrase." },
+                    explanation: { type: Type.STRING, description: "A very brief, one-sentence explanation in Spanish about the usage or context of the phrase." },
+                },
+                required: ["front", "back"]
+            };
+
+            const result = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: `From the following text, extract the core English phrase to be learned, its Spanish translation, and a brief explanation in Spanish. The text might be messy or contain multiple languages. Focus on the single most important learning point.\n\nText: "${text}"`,
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: schema,
+                }
+            });
+
+            const jsonResponse = JSON.parse(result.text);
+            return {
+                front: jsonResponse.front || text, // fallback to original text
+                back: jsonResponse.back || 'No se encontró traducción.',
+                explanation: jsonResponse.explanation || '',
+            };
+
+        } catch (e) {
+            console.error("Flashcard content generation error:", e);
+            setError("No se pudo procesar el texto para la flashcard.");
+            return null;
+        }
+    }, []);
+
+    return { transcript, conversationState, error, startConversation, stopConversation, generateTranslation, generateFlashcardContent };
 };
