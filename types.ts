@@ -42,3 +42,21 @@ export interface Flashcard {
     front: string;
     back: string;
 }
+
+// Types for Supabase table rows
+export interface DatabaseConversation {
+    id: string;
+    created_at: string;
+    title: string;
+    timestamp: string;
+    transcript: TranscriptEntry[];
+    personaId: string;
+    scenarioId: string;
+}
+
+export interface DatabaseFlashcard {
+    id:string;
+    created_at: string;
+    front: string;
+    back: string;
+}
