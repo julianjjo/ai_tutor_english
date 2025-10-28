@@ -164,7 +164,7 @@ export const useSupabaseData = (session: Session | null) => {
     const saveFlashcardAudio = useCallback(async (cardId: string, audioBase64: string) => {
         if (!session?.user) return;
         try {
-            const { error } = await supabase.from('flashcards').update({ audio_base_64: audioBase64 }).eq('id', cardId);
+            const { error } = await supabase.from('flashcards').update({ audio_base64: audioBase64 }).eq('id', cardId);
             if (error) throw error;
             setFlashcards(prev => 
                 prev.map(card => 
