@@ -137,6 +137,73 @@ npm run build
 
 # Previsualizar build de producción
 npm run preview
+
+# Ejecutar pruebas
+npm test
+
+# Ejecutar pruebas con cobertura
+npm run test:coverage
+
+# Ejecutar pruebas con interfaz gráfica
+npm run test:ui
+```
+
+## 🚀 Despliegue en Cloud Run
+
+El proyecto está configurado para desplegarse en Google Cloud Run usando la siguiente imagen Docker:
+
+### Repositorio de Imagen
+```
+us-central1-docker.pkg.dev/gen-lang-client-0517772705/ai-tutor
+```
+
+### Comandos de Despliegue
+
+```bash
+# 1. Construir la imagen Docker
+docker build -t us-central1-docker.pkg.dev/gen-lang-client-0517772705/ai-tutor:latest .
+
+# 2. Autenticarse con Google Cloud
+gcloud auth configure-docker us-central1-docker.pkg.dev
+
+# 3. Subir la imagen al registro
+docker push us-central1-docker.pkg.dev/gen-lang-client-0517772705/ai-tutor:latest
+
+# 4. Desplegar en Cloud Run
+gcloud run deploy ai-tutor-english \
+  --image=us-central1-docker.pkg.dev/gen-lang-client-0517772705/ai-tutor:latest \
+  --platform=managed \
+  --region=us-west1 \
+  --allow-unauthenticated \
+  --memory=512Mi \
+  --cpu=1 \
+  --max-instances=3 \
+  --set-env-vars="VITE_GEMINI_API_KEY=AIzaSyC-TTNV4vNCWBlnr-8jhbtQ2UITYuipNEw" \
+  --set-env-vars="VITE_SUPABASE_URL=https://srqaxcdhgombfhvapnzm.supabase.co" \
+  --set-env-vars="VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI"
+```
+
+### Servicio Desplegado
+- **URL**: https://tutor-de-ingl-s-con-ia-bq7cip4e6q-uw.a.run.app
+- **Región**: us-west1
+- **Memoria**: 512Mi
+- **CPU**: 1000m
+- **Escalado**: 0-3 instancias
+- **Timeout**: 300 segundos
+
+### Variables de Entorno en Producción
+Las variables de entorno deben configurarse en Cloud Run:
+- `VITE_GEMINI_API_KEY`: Clave de API de Google Gemini
+- `VITE_SUPABASE_URL`: URL del proyecto Supabase
+- `VITE_SUPABASE_ANON_KEY`: Clave anónima de Supabase
+
+### Monitoreo y Logs
+```bash
+# Ver logs del servicio
+gcloud logs read "resource.type=cloud_run_revision" --limit=50
+
+# Ver métricas del servicio
+gcloud run services describe ai-tutor-english --region=us-west1
 ```
 
 ## 🤝 Contribuir
