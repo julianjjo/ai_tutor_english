@@ -10,6 +10,8 @@ if (!supabaseUrl || !supabaseKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: {
-        redirectTo: supabaseRedirectUrl || window.location.origin
+        redirectTo: supabaseRedirectUrl,
+        persistSession: true,
+        detectSessionInUrl: true
     }
 });
