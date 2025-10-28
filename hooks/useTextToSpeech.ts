@@ -26,7 +26,7 @@ export const useTextToSpeech = () => {
             let audioToPlay = card.audioBase64;
 
             if (!audioToPlay) {
-                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+                const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
                 const response = await ai.models.generateContent({
                     model: "gemini-2.5-flash-preview-tts",
                     contents: [{ parts: [{ text: card.front }] }],

@@ -118,7 +118,7 @@ export const useConversation = (selectedPersona: Persona, selectedScenario: Scen
         if (conversationState !== ConversationState.IDLE) return;
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+            const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string });
             setConversationState(ConversationState.LISTENING);
             
             outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -195,7 +195,7 @@ export const useConversation = (selectedPersona: Persona, selectedScenario: Scen
         };
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+            const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string });
             const result = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
                 contents: `Translate the following English text to Spanish and provide an explanation: "${text}"`,
@@ -219,7 +219,7 @@ export const useConversation = (selectedPersona: Persona, selectedScenario: Scen
 
     const generateFlashcardContent = useCallback(async (text: string): Promise<{ front: string; back: string; explanation: string } | null> => {
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+            const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string });
 
             const schema = {
                 type: Type.OBJECT,
